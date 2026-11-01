@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniCluster</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:860px;margin:24px auto;padding:0 16px;background:#0f172a;color:#e2e8f0}
+  h1{margin-bottom:0} .sub{color:#94a3b8;margin-top:4px}
+  .card{background:#1e293b;border-radius:12px;padding:16px;margin:16px 0}
+  label{display:inline-block;margin-right:16px;font-size:14px;color:#94a3b8}
+  input,select{background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:6px;width:110px}
+  button{background:#22c55e;color:#04210f;border:0;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;margin:8px 8px 0 0}
+  button.alt{background:#38bdf8;color:#04202e} button:disabled{opacity:.5}
+  table{width:100%;border-collapse:collapse} td,th{padding:6px 8px;text-align:left;border-bottom:1px solid #334155}
+  .on{color:#22c55e} .off{color:#ef4444}
+  .bar{background:#0f172a;border-radius:6px;height:12px} .bar>div{background:#22c55e;height:12px;border-radius:6px}
+  code{color:#fbbf24}
+</style>
+</head>
+<body>
+<h1>MiniCluster</h1>
+<p class="sub">Level 1: teen lab PCs par distributed computation (squares)</p>
+
+<div class="card">
+  <h3>Cluster Status</h3>
+  <table id="status"><tr><td>Loading...</td></tr></table>
+</div>
+
+<div class="card">
+  <h3>Task: 1..N ke squares</h3>
+  <label>N <input id="n" type="number" value="10000"></label>
+  <label>Workers
+    <select id="w"><option>1</option><option>2</option><option selected>3</option></select>
+  </label>
+  <label>Work factor <input id="work" type="number" value="2000"></label>
+  <br>
+  <button id="run">Run</button>
+  <button id="cmp" class="alt">Compare 1 / 2 / 3 PCs</button>
+  <div id="out"></div>
+</div>
+
+<div class="card" id="cmpcard" style="display:none">
+  <h3>Speedup &amp; Efficiency</h3>
+  <table id="cmptbl"></table>
+  <p class="sub">Speedup = T1 / Tp &nbsp;|&nbsp; Efficiency = Speedup / p</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = t => t.toFixed(3) + " s";
+
+async function refresh(){
+  try{
+    const r = await (await fetch("/api/status")).json();
+    const on = r.filter(x=>x.online).length;
+    $("status").innerHTML = "<tr><th>Worker</th><th>Address</th><th>Status</th></tr>" +
+      r.map(x=>`<tr><td>${x.name}</td><td>${x.host}:${x.port}</td>
+        <td class="${x.online?'on':'off'}">${x.online?'ONLINE':'OFFLINE'}</td></tr>`).join("") +
+      `<tr><td colspan=3>Workers: ${on}/${r.length}</td></tr>`;
+  }catch(e){}
+}
+refresh(); setInterval(refresh, 3000);
+
+async function runOnce(workers){
+  const res = await fetch("/api/run",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({n:+$("n").value, workers:workers, work:+$("work").value})});
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.detail || "error");
+  return data;
+}
+
+$("run").onclick = async ()=>{
+  $("run").disabled = true; $("out").innerHTML = "Running...";
+  try{
+    const d = await runOnce(+$("w").value);
+    const max = Math.max(...d.parts.map(p=>p.time));
+    $("out").innerHTML = `<table><tr><th>Worker</th><th>Range</th><th>Count</th><th>Time</th><th></th></tr>` +
+      d.parts.map(p=>`<tr><td>${p.worker}</td><td>${p.start}-${p.end}</td><td>${p.count}</td>
+        <td>${fmt(p.time)}</td><td style="width:30%"><div class="bar"><div style="width:${p.time/max*100}%"></div></div></td></tr>`).join("") +
+      `</table><p>Total time: <b>${fmt(d.total_time)}</b> &nbsp; Result correct: <b>${d.correct?'YES':'NO'}</b></p>
+       <p>First 10: <code>${d.preview.join(", ")}</code></p>`;
+  }catch(e){ $("out").innerHTML = `<span class="off">${e.message}</span>`; }
+  $("run").disabled = false;
+};
+
+$("cmp").onclick = async ()=>{
+  $("cmp").disabled = true; $("cmpcard").style.display="block";
+  $("cmptbl").innerHTML = "<tr><td>Running comparison...</td></tr>";
+  try{
+    const rows = []; let t1 = null;
+    for(const p of [1,2,3]){
+      const d = await runOnce(p);
+      if(p===1) t1 = d.total_time;
+      const sp = t1/d.total_time;
+      rows.push(`<tr><td>${p}</td><td>${fmt(d.total_time)}</td><td>${sp.toFixed(2)}x</td><td>${(sp/p*100).toFixed(0)}%</td></tr>`);
+      $("cmptbl").innerHTML = "<tr><th>PCs</th><th>Time</th><th>Speedup</th><th>Efficiency</th></tr>" + rows.join("");
+    }
+  }catch(e){ $("cmptbl").innerHTML = `<tr><td class="off">${e.message}</td></tr>`; }
+  $("cmp").disabled = false;
+};
+</script>
+</body>
+</html>

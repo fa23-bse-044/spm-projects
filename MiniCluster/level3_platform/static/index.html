@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniCluster ML</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px;background:#0f172a;color:#e2e8f0}
+  h1{margin-bottom:0} h3{margin:0 0 10px} .sub{color:#94a3b8;margin:4px 0;font-size:13px}
+  .card{background:#1e293b;border-radius:12px;padding:16px;margin:14px 0}
+  .row{display:flex;flex-wrap:wrap;gap:0 14px;align-items:flex-end}
+  label{font-size:12px;color:#94a3b8;margin-bottom:8px}
+  input,select{display:block;margin-top:2px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:6px;min-width:90px;max-width:230px}
+  button,.btn{background:#22c55e;color:#04210f;border:0;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;margin:6px 8px 0 0;font-size:14px;text-decoration:none;display:inline-block}
+  button.alt{background:#38bdf8;color:#04202e} button.stop{background:#ef4444;color:#fff} button.ghost{background:#334155;color:#e2e8f0}
+  button:disabled{opacity:.45;cursor:default}
+  table{width:100%;border-collapse:collapse;font-size:13px} td,th{padding:5px 8px;text-align:left;border-bottom:1px solid #334155}
+  .on{color:#22c55e} .off{color:#ef4444} .warn{color:#fbbf24}
+  .bar{background:#0f172a;border-radius:6px;height:10px;overflow:hidden;min-width:60px} .bar>div{background:#22c55e;height:10px;transition:width .3s}
+  .bar.cpu>div{background:#38bdf8}
+  #events{font-family:ui-monospace,monospace;font-size:12px;max-height:130px;overflow:auto;color:#cbd5e1;margin-top:10px}
+  svg{width:100%;height:190px;background:#0f172a;border-radius:8px}
+  .kpi{display:inline-block;margin:0 22px 8px 0}.kpi b{font-size:20px;display:block}.kpi span{font-size:12px;color:#94a3b8}
+  .hide{display:none} .pill{background:#334155;border-radius:999px;padding:2px 10px;font-size:12px;margin-right:6px}
+  .cm td,.cm th{text-align:center} .cm td.d{background:#14532d}
+  .scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<h1>MiniCluster ML</h1>
+<p class="sub">Level 3: web-based distributed ML platform. Dataset chunein, algorithm chunein, PCs chunein, aur dekhein cluster kaise kaam karta hai.</p>
+
+<div class="card">
+  <h3>1. Cluster</h3>
+  <table id="status"><tr><td>Loading...</td></tr></table>
+</div>
+
+<div class="card">
+  <h3>2. Dataset</h3>
+  <div class="row">
+    <label>Dataset<select id="ds"></select></label>
+    <label id="nbox">Records (N)<input id="n" type="number" value="100000" min="100"></label>
+    <label id="tbox" class="hide">Target column<select id="target"></select></label>
+    <label id="kbox" class="hide">Task<select id="task"><option value="auto">auto</option><option>classification</option><option>regression</option></select></label>
+    <label>Apni CSV<input id="file" type="file" accept=".csv,.txt,.tsv"></label>
+  </div>
+  <div id="prev" class="sub">...</div>
+  <div class="scroll"><table id="prevtbl"></table></div>
+</div>
+
+<div class="card">
+  <h3>3. Experiment</h3>
+  <div class="row">
+    <label>Algorithm<select id="algo"></select></label>
+    <label>Workers (PCs)<select id="w"><option>1</option><option>2</option><option selected>3</option></select></label>
+    <label class="gd">Epochs<input id="epochs" type="number" value="100"></label>
+    <label class="gd">Learning rate<input id="lr" type="number" step="0.05" value="0.5"></label>
+    <label class="rfp hide">Trees<input id="trees" type="number" value="30"></label>
+    <label class="rfp hide">Max depth<input id="depth" type="number" value="10"></label>
+    <label class="rfp hide">Cores / worker<input id="cores" type="number" value="1" min="1"></label>
+  </div>
+  <details><summary class="sub" style="cursor:pointer">Advanced</summary>
+    <div class="row" style="margin-top:8px">
+      <label class="gd">Work factor (extra compute)<input id="work" type="number" value="1" min="1"></label>
+      <label class="gd">Slow-motion (ms/epoch)<input id="slow" type="number" value="0" min="0"></label>
+    </div>
+  </details>
+  <button id="run">Run Experiment</button>
+  <button id="stop" class="stop" disabled>Stop</button>
+  <button id="cmp" class="alt">Compare 1 / 2 / 3 PCs</button>
+  <div style="margin-top:12px"><div class="bar"><div id="prog" style="width:0%"></div></div>
+  <div class="sub" id="progtxt">Idle</div></div>
+</div>
+
+<div class="card">
+  <h3>Live</h3>
+  <div class="scroll"><table id="wk"></table></div>
+  <div id="chartbox" class="hide" style="margin-top:10px">
+    <svg id="chart" viewBox="0 0 600 190" preserveAspectRatio="none"></svg>
+    <div class="sub"><span style="color:#22c55e">&#9632;</span> loss (log scale) &nbsp; <span id="acclegend" style="color:#38bdf8">&#9632; train accuracy</span></div>
+  </div>
+  <div id="events"></div>
+</div>
+
+<div class="card hide" id="rescard">
+  <h3>Result</h3>
+  <div id="kpis"></div>
+  <div class="scroll"><table id="cm" class="cm" style="width:auto"></table></div>
+</div>
+
+<div class="card hide" id="cmpcard">
+  <h3>Speedup &amp; Efficiency (compute time, data transfer ke baghair)</h3>
+  <table id="cmptbl"></table>
+  <p class="sub" id="amdahl"></p>
+  <p class="sub">Speedup = T1 / Tp &nbsp;|&nbsp; Efficiency = Speedup / p &nbsp;|&nbsp; Amdahl: S = 1 / (s + (1-s)/p)</p>
+</div>
+
+<div class="card">
+  <h3>Experiment history</h3>
+  <div class="scroll"><table id="hist"><tr><td class="sub">Abhi koi experiment nahi</td></tr></table></div>
+  <a class="btn ghost" href="/api/history.csv">Download CSV (lab report ke liye)</a>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ALGOS = {logreg:"Logistic Regression", linreg:"Linear Regression", rf:"Random Forest"};
+let DS = [], PREV = null, STATUS = [], JOB = null, prevReq = 0;
+
+// ---------------------------------------------------------------- cluster status
+async function refreshStatus(){
+  try{ STATUS = await (await fetch("/api/status")).json(); renderWorkers(); }catch(e){}
+}
+function renderWorkers(){
+  const jw = (JOB && JOB.workers) || {};
+  $("status").innerHTML = "<tr><th>Worker</th><th>Address</th><th>Status</th><th>CPU</th><th>RAM</th></tr>" +
+    STATUS.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.host)}:${x.port}</td>
+      <td class="${x.online?'on':'off'}">${x.online?'ONLINE':'OFFLINE'}</td>
+      <td>${bar(x.cpu,'cpu')}</td><td>${bar(x.ram,'')}</td></tr>`).join("") +
+    `<tr><td colspan=5 class="sub">Workers: ${STATUS.filter(x=>x.online).length}/${STATUS.length}</td></tr>`;
+  const names = Object.keys(jw);
+  if(!names.length){ $("wk").innerHTML=""; return; }
+  const isRf = JOB.algo==="rf";
+  $("wk").innerHTML = `<tr><th>Worker</th><th>State</th><th>CPU</th><th>${isRf?'Tasks done':'Rows'}</th><th>Last compute</th></tr>` +
+    names.map(k=>{ const v=jw[k], st=STATUS.find(s=>s.name===k)||{};
+      return `<tr><td>${esc(k)}</td><td class="${v.state==='online'?'on':'off'}">${esc(v.state.toUpperCase())}</td>
+        <td>${bar(st.cpu,'cpu')}</td><td>${isRf? v.tasks : v.rows.toLocaleString()}</td><td>${v.compute_ms} ms</td></tr>`;}).join("");
+}
+function bar(v,cls){
+  if(v==null) return "-";
+  return `<div style="display:flex;align-items:center;gap:6px"><div class="bar ${cls}" style="flex:1"><div style="width:${Math.min(100,v)}%"></div></div><span>${v}%</span></div>`;
+}
+refreshStatus(); setInterval(refreshStatus, 2500);
+
+// ---------------------------------------------------------------- datasets
+async function loadDatasets(select){
+  DS = await (await fetch("/api/datasets")).json();
+  const cur = select || $("ds").value;
+  $("ds").innerHTML = DS.map(d=>`<option value="${esc(d.name)}">${esc(d.name)} (${d.source}${d.rows?", "+d.rows+" rows":""}${d.task?", "+d.task:""})</option>`).join("");
+  if(DS.some(d=>d.name===cur)) $("ds").value = cur;
+  onDatasetChange(true);
+}
+function curDS(){ return DS.find(d=>d.name===$("ds").value) || {}; }
+function onDatasetChange(rebuildTarget){
+  const d = curDS(), up = d.source==="upload";
+  $("nbox").classList.toggle("hide", !d.adjustable);
+  $("tbox").classList.toggle("hide", !up); $("kbox").classList.toggle("hide", !up);
+  if(up && rebuildTarget){
+    $("target").innerHTML = d.columns.map(c=>`<option>${esc(c)}</option>`).join("");
+    $("target").value = d.columns[d.columns.length-1];
+  }
+  refreshPreview();
+}
+let pvTimer = null;
+function refreshPreview(){ clearTimeout(pvTimer); pvTimer = setTimeout(doPreview, 250); }
+async function doPreview(){
+  const d = curDS(); const id = ++prevReq;
+  const q = new URLSearchParams({name:d.name, n:$("n").value||100000, task:$("task").value});
+  if(d.source==="upload") q.set("target",$("target").value);
+  $("prev").textContent = "Loading preview...";
+  const r = await fetch("/api/dataset/preview?"+q);
+  const p = await r.json();
+  if(id!==prevReq) return;
+  if(!r.ok){ PREV=null; $("prev").innerHTML = `<span class="off">${esc(p.detail||"error")}</span>`; $("prevtbl").innerHTML=""; return; }
+  PREV = p;
+  let t = `<span class="pill">${p.rows.toLocaleString()} rows</span><span class="pill">${p.features} features</span><span class="pill">${p.task}</span>`;
+  if(p.class_counts) t += p.class_names.map((c,i)=>`<span class="pill">${esc(c)}: ${p.class_counts[i]}</span>`).join("");
+  if(p.dropped.length) t += `<br><span class="warn">Features mein shamil nahi (text/id column): ${p.dropped.map(esc).join(", ")}</span>`;
+  $("prev").innerHTML = t;
+  $("prevtbl").innerHTML = "<tr>"+p.names.slice(0,10).map(n=>`<th>${esc(n)}</th>`).join("")+"<th>target</th></tr>" +
+    p.head.map((r,i)=>"<tr>"+r.slice(0,10).map(v=>`<td>${v}</td>`).join("")+`<td>${esc(p.target_head[i])}</td></tr>`).join("");
+  updateAlgos();
+}
+function updateAlgos(){
+  if(!PREV) return;
+  const opts = PREV.task==="classification" ? ["logreg","rf"] : ["linreg","rf"];
+  const cur = $("algo").value;
+  $("algo").innerHTML = opts.map(a=>`<option value="${a}">${ALGOS[a]}</option>`).join("");
+  $("algo").value = opts.includes(cur) ? cur : opts[0];
+  onAlgo(!opts.includes(cur));
+}
+function onAlgo(setLr){
+  const a = $("algo").value, rf = a==="rf";
+  document.querySelectorAll(".gd").forEach(e=>e.classList.toggle("hide", rf));
+  document.querySelectorAll(".rfp").forEach(e=>e.classList.toggle("hide", !rf));
+  if(setLr) $("lr").value = a==="linreg" ? 0.3 : 0.5;
+}
+$("ds").onchange = ()=>onDatasetChange(true);
+$("target").onchange = refreshPreview; $("task").onchange = refreshPreview; $("n").oninput = refreshPreview;
+$("algo").onchange = ()=>onAlgo(true);
+$("file").onchange = async ()=>{
+  const f = $("file").files[0]; if(!f) return;
+  $("prev").textContent = "Uploading...";
+  const r = await fetch("/api/dataset/upload?name="+encodeURIComponent(f.name), {method:"POST", body:f});
+  const d = await r.json();
+  $("file").value = "";
+  if(!r.ok){ $("prev").innerHTML = `<span class="off">${esc(d.detail||"upload fail")}</span>`; return; }
+  await loadDatasets(d.name);
+};
+
+// ---------------------------------------------------------------- running jobs
+function params(over){
+  const d = curDS();
+  const p = {dataset:d.name, n:+$("n").value||100000, task:$("task").value, algo:$("algo").value, workers:+$("w").value,
+    epochs:+$("epochs").value, lr:+$("lr").value, work:+$("work").value, trees:+$("trees").value,
+    max_depth:+$("depth").value, cores:+$("cores").value, slow_ms:+$("slow").value};
+  if(d.source==="upload") p.target = $("target").value;
+  return {...p, ...(over||{})};
+}
+async function start(p){
+  const r = await fetch("/api/train",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
+  if(!r.ok){ const d = await r.json(); throw new Error(typeof d.detail==="string" ? d.detail : "invalid input"); }
+}
+async function wait(){
+  let tick = 0;
+  while(true){
+    const j = await (await fetch("/api/job")).json();
+    JOB = j; render(j);
+    if(++tick % 3 === 0) refreshStatus();
+    if(j.state!=="running"){ refreshStatus(); return j; }
+    await sleep(300);
+  }
+}
+function busy(b){ ["run","cmp"].forEach(i=>$(i).disabled=b); $("stop").disabled=!b; }
+const PHASES = {preparing:"dataset tayyar ho raha hai", loading:"data workers ko bheja ja raha hai", training:"training",
+  predicting:"test set par prediction", evaluating:"metrics", starting:"shuru"};
+
+function render(j){
+  if(j.state==="idle") return;
+  const rf = j.algo==="rf";
+  const done = rf ? j.tasks_done : j.epoch, total = rf ? j.tasks_total : j.epochs;
+  $("prog").style.width = (total ? done/total*100 : 0) + "%";
+  let txt = j.state.toUpperCase() + (j.state==="running" ? ` | ${PHASES[j.phase]||j.phase}` : "");
+  if(j.phase==="training") txt += rf ? ` | tasks ${done}/${total}` : ` | epoch ${done}/${total}` + (j.losses.length?` | loss ${j.losses[j.losses.length-1].toFixed(4)}`:"");
+  if(j.error) txt += " | " + j.error;
+  $("progtxt").textContent = txt;
+  renderWorkers();
+  $("chartbox").classList.toggle("hide", rf || !j.losses.length);
+  if(!rf) drawChart(j.losses, j.accs);
+  $("events").innerHTML = (j.events||[]).map(e=>`<div class="${/OFFLINE|ERROR/.test(e.msg)?'off':(/dobara/.test(e.msg)?'warn':'')}">[${e.t}s] ${esc(e.msg)}</div>`).join("");
+  $("events").scrollTop = $("events").scrollHeight;
+  if(j.state==="done" && j.result) showResult(j);
+}
+function line(vals, lo, span, color){
+  return `<polyline points="${vals.map((v,i)=>`${10+i/Math.max(1,vals.length-1)*580},${180-(v-lo)/span*165}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2"/>`;
+}
+function drawChart(losses, accs){
+  if(losses.length<2){ $("chart").innerHTML=""; return; }
+  const ls = losses.map(v=>Math.log10(Math.max(v,1e-9)));
+  const lo = Math.min(...ls), span = (Math.max(...ls)-lo)||1;
+  let s = line(ls, lo, span, "#22c55e");
+  if(accs.length>1) s += line(accs, 0, 1, "#38bdf8");
+  $("chart").innerHTML = s + `<text x="14" y="14" fill="#94a3b8" font-size="11">${losses[0].toFixed(3)}</text><text x="14" y="188" fill="#94a3b8" font-size="11">${losses[losses.length-1].toFixed(4)}</text>`;
+  $("acclegend").classList.toggle("hide", !accs.length);
+}
+function kpi(v,l){ return `<div class="kpi"><b>${v}</b><span>${l}</span></div>`; }
+function showResult(j){
+  const r = j.result, m = r.metrics;
+  $("rescard").classList.remove("hide");
+  let k = r.task==="classification" ? kpi((m.accuracy*100).toFixed(2)+"%","test accuracy")+kpi(m.macro_f1.toFixed(3),"macro F1")
+                                    : kpi(m.r2.toFixed(4),"R² (test)")+kpi(m.rmse.toFixed(3),"RMSE")+kpi(m.mae.toFixed(3),"MAE");
+  k += kpi(r.compute_time.toFixed(2)+" s","compute time")+kpi(r.load_time.toFixed(2)+" s","data transfer")+kpi(r.workers_used,"workers used");
+  if(r.avg_epoch_ms!=null) k += kpi(r.avg_epoch_ms.toFixed(1)+" ms","avg epoch")+kpi(Math.max(0,r.avg_epoch_ms-r.avg_compute_ms).toFixed(1)+" ms","network/sync overhead");
+  $("kpis").innerHTML = k;
+  if(r.task==="classification" && m.confusion.length<=10){
+    const cn = r.class_names;
+    $("cm").innerHTML = "<tr><th>actual \\ predicted</th>"+cn.map(c=>`<th>${esc(c)}</th>`).join("")+"</tr>" +
+      m.confusion.map((row,i)=>`<tr><th>${esc(cn[i])}</th>`+row.map((v,jx)=>`<td class="${i===jx?'d':''}">${v}</td>`).join("")+"</tr>").join("");
+  } else $("cm").innerHTML = "";
+}
+async function refreshHistory(){
+  const h = await (await fetch("/api/history")).json();
+  if(!h.length) return;
+  $("hist").innerHTML = "<tr><th>#</th><th>Dataset</th><th>Algorithm</th><th>PCs</th><th>Metric</th><th>Compute</th><th>Transfer</th></tr>" +
+    h.slice().reverse().map(x=>`<tr><td>${x.id}</td><td>${esc(x.dataset)}</td><td>${esc(ALGOS[x.algo])}</td><td>${x.workers_used}/${x.workers_requested}</td>
+      <td>${x.metric} ${x.value}</td><td>${x.compute_s} s</td><td>${x.load_s} s</td></tr>`).join("");
+}
+
+$("run").onclick = async ()=>{
+  busy(true); $("rescard").classList.add("hide");
+  try{ await start(params()); await wait(); }catch(e){ $("progtxt").textContent = e.message; }
+  busy(false); refreshHistory();
+};
+$("stop").onclick = ()=>fetch("/api/stop",{method:"POST"});
+$("cmp").onclick = async ()=>{
+  busy(true); $("stop").disabled = true; $("cmpcard").classList.remove("hide"); $("rescard").classList.add("hide"); $("amdahl").textContent="";
+  const head = "<tr><th>PCs</th><th>Compute time</th><th>Speedup</th><th>Efficiency</th><th>Metric</th></tr>";
+  const rows = []; let t1 = null, last = null;
+  try{
+    for(const k of [1,2,3]){
+      if(k > $("w").options.length) break;
+      $("cmptbl").innerHTML = head + rows.join("") + `<tr><td colspan=5>${k} PC par chal raha hai...</td></tr>`;
+      await start(params({workers:k, slow_ms:0}));
+      const j = await wait();
+      if(j.state!=="done") throw new Error(j.error || ("job "+j.state));
+      const t = j.result.compute_time, m = j.result.metrics;
+      if(k===1) t1 = t;
+      const sp = t1/t; last = {k, sp};
+      const met = m.accuracy!=null ? "acc "+m.accuracy.toFixed(4) : "R² "+m.r2.toFixed(4);
+      rows.push(`<tr><td>${j.result.workers_used}</td><td>${t.toFixed(2)} s</td><td>${sp.toFixed(2)}x</td><td>${(sp/k*100).toFixed(0)}%</td><td>${met}</td></tr>`);
+    }
+    $("cmptbl").innerHTML = head + rows.join("");
+    if(last && last.k>1){
+      const s = (1/last.sp - 1/last.k)/(1 - 1/last.k);
+      $("amdahl").textContent = `Amdahl estimate: serial/overhead fraction s ≈ ${(Math.max(0,s)*100).toFixed(0)}% (is se zyada PCs ka faida seemit hai: max speedup ≈ ${(1/Math.max(s,0.001)).toFixed(1)}x).`;
+    }
+  }catch(e){ $("cmptbl").innerHTML = head + rows.join("") + `<tr><td colspan=5 class="off">${esc(e.message)}</td></tr>`; }
+  busy(false); refreshHistory();
+};
+
+loadDatasets("student_pass"); refreshHistory();
+</script>
+</body>
+</html>

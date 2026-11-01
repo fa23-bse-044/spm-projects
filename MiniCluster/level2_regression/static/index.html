@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniCluster ML</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:920px;margin:24px auto;padding:0 16px;background:#0f172a;color:#e2e8f0}
+  h1{margin-bottom:0} h3{margin-top:0} .sub{color:#94a3b8;margin-top:4px}
+  .card{background:#1e293b;border-radius:12px;padding:16px;margin:16px 0}
+  label{display:inline-block;margin:0 14px 8px 0;font-size:13px;color:#94a3b8}
+  input,select{background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:6px;width:100px;display:block;margin-top:2px}
+  button{background:#22c55e;color:#04210f;border:0;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;margin:6px 8px 0 0}
+  button.alt{background:#38bdf8;color:#04202e} button.stop{background:#ef4444;color:#fff} button:disabled{opacity:.5;cursor:default}
+  table{width:100%;border-collapse:collapse;font-size:14px} td,th{padding:6px 8px;text-align:left;border-bottom:1px solid #334155}
+  .on{color:#22c55e} .off{color:#ef4444} .warn{color:#fbbf24}
+  .bar{background:#0f172a;border-radius:6px;height:12px;overflow:hidden} .bar>div{background:#22c55e;height:12px;transition:width .3s}
+  #events{font-family:ui-monospace,monospace;font-size:12px;max-height:130px;overflow:auto;color:#cbd5e1}
+  svg{width:100%;height:200px;background:#0f172a;border-radius:8px}
+  .kpi{display:inline-block;margin:0 22px 8px 0}.kpi b{font-size:20px;display:block}.kpi span{font-size:12px;color:#94a3b8}
+</style>
+</head>
+<body>
+<h1>MiniCluster ML</h1>
+<p class="sub">Level 2: Distributed Linear Regression (student score prediction), gradient aggregation + fault tolerance</p>
+
+<div class="card">
+  <h3>Cluster Status</h3>
+  <table id="status"><tr><td>Loading...</td></tr></table>
+</div>
+
+<div class="card">
+  <h3>Training</h3>
+  <label>Records (N)<input id="n" type="number" value="300000"></label>
+  <label>Workers<select id="w"><option>1</option><option>2</option><option selected>3</option></select></label>
+  <label>Epochs<input id="epochs" type="number" value="60"></label>
+  <label>Learning rate<input id="lr" type="number" step="0.01" value="0.15"></label>
+  <label>Work factor<input id="work" type="number" value="10"></label>
+  <label>Slow-motion (ms/epoch)<input id="slow" type="number" value="0"></label>
+  <br>
+  <button id="run">Start Training</button>
+  <button id="stop" class="stop" disabled>Stop</button>
+  <button id="cmp" class="alt">Compare 1 / 2 / 3 PCs</button>
+  <div style="margin-top:12px"><div class="bar"><div id="prog" style="width:0%"></div></div>
+  <div class="sub" id="progtxt">Idle</div></div>
+</div>
+
+<div class="card">
+  <h3>Loss (MSE, log scale)</h3>
+  <svg id="chart" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+  <table id="wk" style="margin-top:10px"></table>
+  <div id="events" style="margin-top:10px"></div>
+</div>
+
+<div class="card" id="rescard" style="display:none">
+  <h3>Result</h3>
+  <div id="kpis"></div>
+  <table id="wtbl"></table>
+</div>
+
+<div class="card" id="cmpcard" style="display:none">
+  <h3>Speedup &amp; Efficiency (training time)</h3>
+  <table id="cmptbl"></table>
+  <p class="sub">Speedup = T1 / Tp &nbsp;|&nbsp; Efficiency = Speedup / p</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let lastJob = null;
+
+async function refreshStatus(){
+  try{
+    const r = await (await fetch("/api/status")).json();
+    const jw = (lastJob && lastJob.workers) || {};
+    $("status").innerHTML = "<tr><th>Worker</th><th>Address</th><th>Status</th><th>CPU</th><th>RAM</th></tr>" +
+      r.map(x=>`<tr><td>${x.name}</td><td>${x.host}:${x.port}</td>
+        <td class="${x.online?'on':'off'}">${x.online?'ONLINE':'OFFLINE'}</td>
+        <td>${x.cpu!=null?x.cpu+'%':'-'}</td><td>${x.ram!=null?x.ram+'%':'-'}</td></tr>`).join("") +
+      `<tr><td colspan=5>Workers: ${r.filter(x=>x.online).length}/${r.length}</td></tr>`;
+  }catch(e){}
+}
+refreshStatus(); setInterval(refreshStatus, 2500);
+
+function drawChart(losses){
+  const svg = $("chart");
+  if(losses.length<2){ svg.innerHTML=""; return; }
+  const ls = losses.map(v=>Math.log10(Math.max(v,1e-9)));
+  const lo = Math.min(...ls), hi = Math.max(...ls), span = (hi-lo)||1;
+  const pts = ls.map((v,i)=>`${10+i/(ls.length-1)*580},${185-(v-lo)/span*170}`).join(" ");
+  svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="#22c55e" stroke-width="2"/>
+    <text x="14" y="14" fill="#94a3b8" font-size="11">${losses[0].toFixed(2)}</text>
+    <text x="14" y="196" fill="#94a3b8" font-size="11">${losses[losses.length-1].toFixed(3)}</text>`;
+}
+
+function render(j){
+  lastJob = j;
+  if(j.state==="idle") return;
+  const pct = j.epochs ? j.epoch/j.epochs*100 : 0;
+  $("prog").style.width = pct+"%";
+  $("progtxt").textContent = `${j.state.toUpperCase()}  epoch ${j.epoch}/${j.epochs}` +
+    (j.losses.length?`  loss ${j.losses[j.losses.length-1].toFixed(3)}`:"") + (j.error?`  ${j.error}`:"");
+  drawChart(j.losses);
+  const ws = Object.entries(j.workers||{});
+  const maxr = Math.max(1,...ws.map(([k,v])=>v.rows));
+  $("wk").innerHTML = ws.length ? "<tr><th>Worker</th><th>State</th><th>Rows</th><th>Last compute</th><th></th></tr>" +
+    ws.map(([k,v])=>`<tr><td>${k}</td><td class="${v.state==='online'?'on':'off'}">${v.state.toUpperCase()}</td>
+      <td>${v.rows.toLocaleString()}</td><td>${v.compute_ms} ms</td>
+      <td style="width:30%"><div class="bar"><div style="width:${v.rows/maxr*100}%"></div></div></td></tr>`).join("") : "";
+  $("events").innerHTML = (j.events||[]).map(e=>`<div class="${e.msg.includes('OFFLINE')||e.msg.includes('ERROR')?'off':(e.msg.includes('dobara')?'warn':'')}">[${e.t}s] ${e.msg}</div>`).join("");
+  $("events").scrollTop = $("events").scrollHeight;
+  if(j.state==="done" && j.result) showResult(j.result);
+}
+
+function showResult(r){
+  $("rescard").style.display="block";
+  const kpi=(v,l)=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  $("kpis").innerHTML = kpi(r.r2.toFixed(4),"R² score")+kpi(r.final_mse.toFixed(3),"final MSE (optimal "+r.optimal_mse.toFixed(3)+")")+
+    kpi(r.train_time.toFixed(2)+" s","training time")+kpi(r.workers_used,"workers used")+
+    kpi(r.avg_epoch_ms.toFixed(1)+" ms","avg epoch")+kpi(Math.max(0,r.avg_epoch_ms-r.avg_compute_ms).toFixed(1)+" ms","avg network/sync overhead");
+  $("wtbl").innerHTML = "<tr><th>Feature</th><th>True</th><th>Learned (distributed)</th><th>Closed-form</th></tr>" +
+    r.features.map((f,i)=>`<tr><td>${f}</td><td>${r.true[i].toFixed(3)}</td><td>${r.learned[i].toFixed(3)}</td><td>${r.closed_form[i].toFixed(3)}</td></tr>`).join("") +
+    `<tr><td colspan=4>Max |learned - closed-form| = ${r.max_diff.toExponential(2)}</td></tr>`;
+}
+
+function params(slow){
+  return {n:+$("n").value, workers:+$("w").value, epochs:+$("epochs").value, lr:+$("lr").value,
+          work:+$("work").value, slow_ms: slow===undefined ? +$("slow").value : slow};
+}
+async function start(p){
+  const r = await fetch("/api/train",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
+  if(!r.ok){ const d = await r.json(); throw new Error(typeof d.detail==="string"?d.detail:"invalid input"); }
+}
+async function wait(){
+  while(true){
+    const j = await (await fetch("/api/job")).json();
+    render(j);
+    if(j.state!=="running") return j;
+    await sleep(300);
+  }
+}
+function busy(b){ $("run").disabled=b; $("cmp").disabled=b; $("stop").disabled=!b; }
+
+$("run").onclick = async ()=>{
+  busy(true); $("rescard").style.display="none";
+  try{ await start(params()); await wait(); }catch(e){ $("progtxt").textContent = e.message; }
+  busy(false);
+};
+$("stop").onclick = ()=>fetch("/api/stop",{method:"POST"});
+$("cmp").onclick = async ()=>{
+  busy(true); $("stop").disabled=true; $("cmpcard").style.display="block"; $("rescard").style.display="none";
+  const rows=[]; let t1=null; const head="<tr><th>PCs</th><th>Training time</th><th>Speedup</th><th>Efficiency</th><th>R²</th></tr>";
+  try{
+    for(const k of [1,2,3]){
+      $("cmptbl").innerHTML = head+rows.join("")+`<tr><td colspan=5>Running with ${k} PC(s)...</td></tr>`;
+      await start({...params(0), workers:k});
+      const j = await wait();
+      if(j.state!=="done") throw new Error(j.error||("job "+j.state));
+      const t = j.result.train_time; if(k===1) t1=t;
+      rows.push(`<tr><td>${k}</td><td>${t.toFixed(2)} s</td><td>${(t1/t).toFixed(2)}x</td><td>${(t1/t/k*100).toFixed(0)}%</td><td>${j.result.r2.toFixed(4)}</td></tr>`);
+    }
+    $("cmptbl").innerHTML = head+rows.join("");
+  }catch(e){ $("cmptbl").innerHTML = head+rows.join("")+`<tr><td colspan=5 class="off">${e.message}</td></tr>`; }
+  busy(false);
+};
+</script>
+</body>
+</html>
