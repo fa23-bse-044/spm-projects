@@ -1,0 +1,46 @@
+NAME                    UUID                                  TYPE      DEVICE 
+[32mWirelessNet[0m             [32m38ad9ef2-6fc7-40b8-baee-913d142a3de6[0m  [32mwifi[0m      [32mwlp2s0[0m 
+[32;2mvirbr0[0m                  [32;2m051fc7ff-b181-4700-8502-953189d4d1a6[0m  [32;2mbridge[0m    [32;2mvirbr0[0m 
+......  ..... .. ....   2d05d01f-8861-4605-a44d-c9e32d7372fc  wifi      --     
+...............         f64c2f3d-e2d8-4113-92f0-a95e73954ba3  wifi      --     
+Ali Hassan              3940aa57-a003-4261-815c-705c30a6b3d8  wifi      --     
+APNA HOSTEL             3e999163-e412-4666-86a0-53208c3023d9  wifi      --     
+Daanians                8a9b8325-e1a7-4a3e-b894-b220fef702e8  wifi      --     
+Faculty                 cc8560f6-06ba-412f-850e-a113981accbc  wifi      --     
+Ghouri2                 2a428934-476d-4cc6-971a-7e107ac930b2  wifi      --     
+Ik tha tiger 🐅         be642e33-6108-4833-b503-0fd04b36a5a9  wifi      --     
+Infinix HOT 60 Pro      39829232-a362-4627-bf03-3a1b8b431829  wifi      --     
+Infinix HOT 60 Pro+     6a7811d6-a149-40ae-b0b7-38b24afe894a  wifi      --     
+J U N I O R°            537ab434-b515-4624-8a61-e46435431c14  wifi      --     
+Lingual Lab             d6fb0c5d-bf60-4204-80ff-fe8fbef25bbe  wifi      --     
+Linguistic Lab          e4c6fc94-0250-4a21-8bdf-067384702127  wifi      --     
+MERCUSYS_DE7A           b91cff03-81e6-4e72-bf44-13e42fe27531  wifi      --     
+Mubashir's PC           d26761a9-1f6d-410d-944a-0ccb4676ae54  wifi      --     
+Muneeba🐥🐥             060f5357-b5e7-4a3e-aa41-c0527dbef7f3  wifi      --     
+N means R               0ff911da-21d9-44e5-bf0f-f533a7177c44  wifi      --     
+OnePlus 7T              bcecda5c-a548-4d40-8f02-a3306dabda25  wifi      --     
+OPPO A5 2020            99f1beb4-86dd-4a08-91e7-1889011c9d2b  wifi      --     
+OPPO Reno15 F 5G 7626   8bfdf127-406b-443c-82d9-63eedfa7ec08  wifi      --     
+Present Sir! 🫡         d509fbe7-797a-42e2-a059-7f231d948d86  wifi      --     
+realme C65              94d28109-851d-4cef-90dc-26aa91139190  wifi      --     
+R@n@ S@@b               1acbe0ef-fe63-4fd3-92b9-e5606464064a  wifi      --     
+safdar's A07            3b7bb5ce-c72b-4dbe-a111-dc554a4239fb  wifi      --     
+Shayan 4G               acb0a29c-818e-4b62-ab7f-3d0f3622ca53  wifi      --     
+STUDENT                 3ef7dd8d-a45f-413d-86e2-5a3f61639e8c  wifi      --     
+Students                2be2e744-d749-4d51-a131-b4c907ffac21  wifi      --     
+Tahseen                 b92007c4-a220-468b-95ce-2cdd4fc82de1  wifi      --     
+Tahseen 1               07aa1ac7-514d-43cd-b0d1-4a6ef6e478b7  wifi      --     
+Tahseen11               a9201dee-9360-4c5d-893e-27115975946c  wifi      --     
+Tahseen11-5GHz          751a4149-9f6c-4286-86f6-bae5ae365aa2  wifi      --     
+Tahseen22               cb3b3614-1ab0-4023-a703-921a6c3554b7  wifi      --     
+Tahseen Hostel 2        3aee534f-241c-4f93-91b1-061e161c42ae  wifi      --     
+TECNO SPARK 10 Pro      b279a59a-cda0-423a-9011-49238d046d09  wifi      --     
+Top                     b3ca7f5c-6149-4f90-9461-ddea21647002  wifi      --     
+Umair bahi1             8b4f6644-9dfb-41c5-a9ee-3ed345b4cbc6  wifi      --     
+ÚQBÃ~^~                 74296262-2dba-4588-87ce-db315f4052f3  wifi      --     
+Uqba Chaudhary          72ca4832-b8de-4ae9-a479-675b720277ba  wifi      --     
+Uqba Chaudhary-5GHz     fce55acf-1430-4711-a73e-5e02248f6e9f  wifi      --     
+vivo Y33T               0d177d13-6091-404e-899c-02fbb8e19fdf  wifi      --     
+Wired connection 1      8a670a13-dbb2-34e6-ac86-c8aaf74c7bbf  ethernet  --     
+zainab                  e29dcea9-d90d-4694-8dac-ab4d02acf49f  wifi      --     
+مولوی راجیش             88299feb-1de9-4070-9dc9-e1c310a1db5a  wifi      --     
